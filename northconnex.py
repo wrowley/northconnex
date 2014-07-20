@@ -52,20 +52,44 @@ class NorthConnexHTMLParser(HTMLParser):
 		# Return everything we know
 		return self._docs
 
-start_time = time.time()
-def reporthook(count, block_size, total_size):
-	'''Original taken from http://blog.moleculea.com/2012/10/04/urlretrieve-progres-indicator/'''
-	duration = time.time() - start_time
-	progress_size = int(count * block_size)
-	speed = int(progress_size / (1024 * duration))
-	percent = min(int(count * block_size * 100 / total_size), 100)
-	sys.stdout.write("\r...%d%%, %d KB, %d KB/s, %d seconds passed" %
-	                (percent, progress_size / (1024), speed, duration)
-	                )
-	sys.stdout.flush()
+
+class ProgressReporter(object):
+	# Want this initialised at the beginning of the program
+	global_start_time = time.time()
+
+	def __init__(self):
+		self.start_time = time.time()
+
+	def reporthook(self, blocks_read, block_size, total_size):
+		# Duration, time in seconds
+		global_duration = time.time() - self.global_start_time
+		my_duration     = time.time() - self.start_time
+
+		# Amount of data read (ever? this time?) in KB
+		amount_read = blocks_read * block_size / 1024
+
+		# Average speed
+		try:
+			speed = amount_read / my_duration
+		except:
+			speed = 0
+
+		# Percentage done
+		percent = float(amount_read * 100) / (total_size/1024)
+		percent = min(percent, 100)
+
+		sys.stdout.write(
+		    "\r...%d%%, %d KB, %d KB/s, %ds/%ds" %
+		        (percent
+		        ,amount_read
+		        ,speed
+		        ,my_duration
+		        ,global_duration
+		        )
+		    )
+		sys.stdout.flush()
 
 BASE_FOLDER = 'northconnex'
-
 def main():
 	# Find where all the docs are
 	parser = NorthConnexHTMLParser()
@@ -98,8 +122,9 @@ def main():
 		# Download it
 		save_location = os.path.join(folder,document)
 		if save_location:
+			reporter = ProgressReporter()
 			print 'Downloading', document, 'to\n', save_location
-			urllib.urlretrieve(link, save_location, reporthook)
+			urllib.urlretrieve(link, save_location, reporter.reporthook)
 			print '\n'
 
 if __name__ == '__main__':
